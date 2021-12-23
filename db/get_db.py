@@ -12,15 +12,6 @@ class MongoClientWithDB:
     def __init__(self):
         self.client = MongoClient()
         self.db = self.client[get_db_name()]
-        self.db[ColEnum.RATINGS].create_index("song_id")
-        self.db[ColEnum.SONGS].create_index('level')
-        self.db[ColEnum.SONGS].create_index(
-            [   
-                ('artist', TEXT),
-                ('title', TEXT),
-            ], 
-            default_language='english'
-        )
 
 
 PERSISTENT_DB_CLIENT: Optional[MongoClient] = None
