@@ -1,6 +1,7 @@
 from bson import ObjectId
 from enum import Enum
 
+
 class PyObjectId(ObjectId):
     @classmethod
     def __get_validators__(cls):

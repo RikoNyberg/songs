@@ -11,11 +11,16 @@ from router import (
     get_songs,
     get_songs_average_difficulty,
 )
-from app.schemas.rating import RatingGet, RatingPostConfirmation, RatingPostConfirmationResultEnum
+from app.schemas.rating import (
+    RatingGet,
+    RatingPostConfirmation,
+    RatingPostConfirmationResultEnum,
+)
 from db.get_db import ColEnum, MongoClientWithDB, get_db
 from db.schemas.rating import RatingInDB
 import pytest
 from pydantic import ValidationError
+
 
 @pytest.fixture(scope="session", autouse=True)
 def execute_before_any_test() -> None:
@@ -48,17 +53,20 @@ def test_get_songs(
 
     offset_and_limit = {}
     if offset is not None and limit is None:
-        offset_and_limit = {'offset':offset}
+        offset_and_limit = {"offset": offset}
     elif offset is None and limit is not None:
-        offset_and_limit = {'limit':limit}
+        offset_and_limit = {"limit": limit}
     elif offset is not None and limit is not None:
-        offset_and_limit = {'offset':offset, 'limit':limit}
+        offset_and_limit = {"offset": offset, "limit": limit}
 
-    assert len(asyncio.new_event_loop().run_until_complete(
-        get_songs(
-            **offset_and_limit, mongo_client=test_mongo_client
+    assert (
+        len(
+            asyncio.new_event_loop().run_until_complete(
+                get_songs(**offset_and_limit, mongo_client=test_mongo_client)
+            )
         )
-    )) == song_count
+        == song_count
+    )
 
 
 @pytest.mark.parametrize(
@@ -73,7 +81,9 @@ def test_get_songs(
 )
 def test_get_songs_average_difficulty(
     test_mongo_client: MongoClientWithDB,
-    level: Optional[int], average_difficulty: float):
+    level: Optional[int],
+    average_difficulty: float,
+):
     assert asyncio.new_event_loop().run_until_complete(
         get_songs_average_difficulty(level=level, mongo_client=test_mongo_client)
     ) == average_difficulty or pytest.approx(average_difficulty, 0.001)
@@ -88,7 +98,7 @@ def test_get_songs_average_difficulty(
         ("The", 10, "The Beatles"),
         ("beatles", 10, "The Beatles"),
         ("ä", 0, None),
-        # NOTE: following searches are not found 
+        # NOTE: following searches are not found
         #       with the text index search:
         ("Beat", 10, "The Beatles"),
         ("Th", 10, "The Beatles"),
@@ -127,25 +137,33 @@ def test_add_song_rating(
             mongo_client=test_mongo_client,
         )
     )
-    assert response == RatingPostConfirmation(result=RatingPostConfirmationResultEnum.SUCCESSFUL)
+    assert response == RatingPostConfirmation(
+        result=RatingPostConfirmationResultEnum.SUCCESSFUL
+    )
 
-    ratings: RatingInDB = [RatingInDB(**rating) for rating in test_mongo_client.db[ColEnum.RATINGS].find({"song_id": song.id})]
+    ratings: RatingInDB = [
+        RatingInDB(**rating)
+        for rating in test_mongo_client.db[ColEnum.RATINGS].find({"song_id": song.id})
+    ]
     assert len(ratings) >= 1
 
 
-@pytest.mark.parametrize("rating,error", [
-    (0, "ensure this value is greater than or equal to 1"),
-    (-1, "ensure this value is greater than or equal to 1"),
-    (6, "ensure this value is less than or equal to 5"),
-    (100, "ensure this value is less than or equal to 5"),
-])
+@pytest.mark.parametrize(
+    "rating,error",
+    [
+        (0, "ensure this value is greater than or equal to 1"),
+        (-1, "ensure this value is greater than or equal to 1"),
+        (6, "ensure this value is less than or equal to 5"),
+        (100, "ensure this value is less than or equal to 5"),
+    ],
+)
 def test_add_song_rating_fails_with_incorrect_rating_value(
     test_mongo_client: MongoClientWithDB,
     rating: int,
     error: str,
 ):
     song: SongInDB = SongInDB(**test_mongo_client.db[ColEnum.SONGS].find_one())
-    
+
     with pytest.raises(ValidationError) as validation_error:
         asyncio.new_event_loop().run_until_complete(
             add_song_rating(
@@ -159,22 +177,22 @@ def test_add_song_rating_fails_with_incorrect_rating_value(
     assert validation_error.value.errors()[0].get("msg") == error
 
 
-
-@pytest.mark.parametrize("ratings,low,average,high", 
+@pytest.mark.parametrize(
+    "ratings,low,average,high",
     [
-        ([1,2,3],1,2,3),
-        ([1],1,1,1),
-        ([],0,0,0),
-        ([1,5],1,3,5),
-        ([1,5,5],1,3.66,5),
-    ]
+        ([1, 2, 3], 1, 2, 3),
+        ([1], 1, 1, 1),
+        ([], 0, 0, 0),
+        ([1, 5], 1, 3, 5),
+        ([1, 5, 5], 1, 3.66, 5),
+    ],
 )
 def test_get_song_rating(
     test_mongo_client: MongoClientWithDB,
     ratings: list[int],
     low: int,
     average: float,
-    high: int
+    high: int,
 ):
     song: SongInDB = SongInDB(**test_mongo_client.db[ColEnum.SONGS].find_one())
     col = ColEnum.RATINGS
@@ -183,9 +201,7 @@ def test_get_song_rating(
 
     if ratings:
         test_mongo_client.db[col].insert_many(
-            [
-                {"song_id": song.id, "rating": rating} for rating in ratings
-            ]
+            [{"song_id": song.id, "rating": rating} for rating in ratings]
         )
 
     result: RatingGet = asyncio.new_event_loop().run_until_complete(
@@ -203,7 +219,7 @@ def test_get_song_rating(
 def test_add_song_rating_fail_when_song_does_not_exist(
     test_mongo_client: MongoClientWithDB,
 ):
-    non_existent_song_object_id = '61b92e572988bae2e02c4b2b'
+    non_existent_song_object_id = "61b92e572988bae2e02c4b2b"
     with pytest.raises(HTTPException) as exception:
         asyncio.new_event_loop().run_until_complete(
             add_song_rating(
@@ -219,7 +235,7 @@ def test_add_song_rating_fail_when_song_does_not_exist(
 def test_get_song_rating_fail_when_song_does_not_exist(
     test_mongo_client: MongoClientWithDB,
 ):
-    non_existent_song_object_id = '61b92e572988bae2e02c4b2b'
+    non_existent_song_object_id = "61b92e572988bae2e02c4b2b"
     with pytest.raises(HTTPException) as exception:
         asyncio.new_event_loop().run_until_complete(
             get_song_rating(
